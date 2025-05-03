@@ -1,83 +1,115 @@
+// components/charts/PieChartDonut.tsx
 "use client";
 
-import * as React from "react";
-import { TrendingUp } from "lucide-react";
-import { Label, Pie, PieChart } from "recharts";
-
+import React, { useState, useEffect, useMemo } from "react";
+import { Pie, PieChart, Label, Cell } from "recharts";
 import {
     Card,
     CardContent,
-    CardDescription,
     CardFooter,
     CardHeader,
     CardTitle,
+    CardDescription,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
     ChartConfig,
     ChartContainer,
     ChartTooltip,
     ChartTooltipContent,
 } from "@/components/ui/chart";
+import { TrendingUp } from "lucide-react";
 
-const chartData = [
-    { browser: "chrome", visitors: 275, fill: "var(--color-chrome)" },
-    { browser: "safari", visitors: 200, fill: "var(--color-safari)" },
-    { browser: "firefox", visitors: 287, fill: "var(--color-firefox)" },
-    { browser: "edge", visitors: 173, fill: "var(--color-edge)" },
-    { browser: "other", visitors: 190, fill: "var(--color-other)" },
-];
+interface PlatformRow {
+    platform: string;
+    count: number;
+}
+interface OrderRow {
+    desktop: number;
+    mobile: number;
+}
 
 const chartConfig: ChartConfig = {
-    visitors: {
-        label: "Visitors",
-    },
-    chrome: {
-        label: "Chrome",
-        color: "hsl(var(--chart-1))",
-    },
-    safari: {
-        label: "Safari",
-        color: "hsl(var(--chart-2))",
-    },
-    firefox: {
-        label: "Firefox",
-        color: "hsl(var(--chart-3))",
-    },
-    edge: {
-        label: "Edge",
-        color: "hsl(var(--chart-4))",
-    },
-    other: {
-        label: "Other",
-        color: "hsl(var(--chart-5))",
-    },
-} satisfies ChartConfig;
+    web: { label: "Web", color: "hsl(var(--chart-1))" },
+    ios: { label: "iOS", color: "hsl(var(--chart-2))" },
+    android: { label: "Android", color: "hsl(var(--chart-3))" },
+};
 
 export function PieChartDonut() {
-    const totalVisitors = React.useMemo(() => {
-        return chartData.reduce((acc, curr) => acc + curr.visitors, 0);
-    }, []);
+    const [range, setRange] = useState<"7" | "14" | "30" | "90">("90");
+    const [data, setData] = useState<PlatformRow[]>([]);
+    const [trend, setTrend] = useState(0);
+
+    useEffect(() => {
+        fetch(`/api/analytics?metric=platformViews&range=${range}`)
+            .then((r) => r.json())
+            .then(({ data }: { data: any[] }) => {
+                setData(
+                    data.map((item) => ({
+                        platform: item.platform,
+                        count: Number(item.count) || 0,
+                    }))
+                );
+            })
+            .catch(console.error);
+
+        fetch(`/api/analytics?metric=monthlyOrders&range=${range}`)
+            .then((r) => r.json())
+            .then(({ data }: { data: any[] }) => {
+                const rows: OrderRow[] = data.map((item) => ({
+                    desktop: Number(item.desktop) || 0,
+                    mobile: Number(item.mobile) || 0,
+                }));
+                if (rows.length >= 2) {
+                    const last = rows.at(-1)!;
+                    const prev = rows.at(-2)!;
+                    const l = last.desktop + last.mobile;
+                    const p = prev.desktop + prev.mobile;
+                    setTrend(p > 0 ? ((l - p) / p) * 100 : 0);
+                }
+            })
+            .catch(console.error);
+    }, [range]);
+
+    const total = useMemo(() => data.reduce((sum, x) => sum + x.count, 0), [data]);
 
     return (
-        <Card className="flex-1">
+        <Card className="flex flex-col">
+            <div className="flex gap-2 mb-2 p-5">
+                {(["7", "14", "30", "90"] as const).map((d) => (
+                    <Button
+                        key={d}
+                        variant={range === d ? "default" : "outline"}
+                        className={`${range === d ? "border border-[#1cca50]" : ""} cursor-pointer`}
+                        onClick={() => setRange(d)}
+                    >
+                        {d} днів
+                    </Button>
+                ))}
+            </div>
             <CardHeader className="items-center pb-0">
-                <CardTitle>Pie Chart - Donut with Text</CardTitle>
-                <CardDescription>January - June 2024</CardDescription>
+                <CardTitle>Розподіл переглядів за платформами</CardTitle>
+                <CardDescription>останні {range} днів</CardDescription>
             </CardHeader>
-            <CardContent className="flex-1 pb-0">
-                <ChartContainer config={chartConfig} className="mx-auto aspect-square max-h-[250px]">
+            <CardContent>
+                <ChartContainer
+                    config={chartConfig}
+                    className="mx-auto aspect-square max-h-[600px]"
+                >
                     <PieChart>
-                        <ChartTooltip
-                            cursor={false}
-                            content={<ChartTooltipContent hideLabel />}
-                        />
+                        <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
                         <Pie
-                            data={chartData}
-                            dataKey="visitors"
-                            nameKey="browser"
-                            innerRadius={60}
+                            data={data}
+                            dataKey="count"
+                            nameKey="platform"
+                            innerRadius={80}
+                            outerRadius={200}
+                            fillOpacity={1}
                             strokeWidth={5}
                         >
+                            {data.map((item) => (
+                                <Cell key={item.platform} fill={`var(--color-${item.platform})`} />
+                            ))}
                             <Label
                                 content={({ viewBox }) => {
                                     if (viewBox && "cx" in viewBox && "cy" in viewBox) {
@@ -93,14 +125,14 @@ export function PieChartDonut() {
                                                     y={viewBox.cy}
                                                     className="fill-foreground text-3xl font-bold"
                                                 >
-                                                    {totalVisitors.toLocaleString()}
+                                                    {total.toLocaleString("uk-UA")}
                                                 </tspan>
                                                 <tspan
                                                     x={viewBox.cx}
                                                     y={(viewBox.cy || 0) + 24}
-                                                    className="fill-foreground"
+                                                    className="fill-muted-foreground"
                                                 >
-                                                    Visitors
+                                                    Перегляди
                                                 </tspan>
                                             </text>
                                         );
@@ -112,12 +144,22 @@ export function PieChartDonut() {
                     </PieChart>
                 </ChartContainer>
             </CardContent>
-            <CardFooter className="flex-col gap-2 text-sm">
-                <div className="flex items-center gap-2 font-medium leading-none">
-                    Trending up by 5.2% this month <TrendingUp className="h-4 w-4" />
+            <CardFooter className="flex-col items-center text-sm">
+                <div className="font-medium flex items-center gap-2">
+                    {trend >= 0 ? (
+                        <>
+                            Зросли на {trend.toFixed(1)}%{" "}
+                            <TrendingUp className="h-4 w-4 text-green-600" />
+                        </>
+                    ) : (
+                        <>
+                            Зменшилися на {Math.abs(trend).toFixed(1)}%{" "}
+                            <TrendingUp className="h-4 w-4 rotate-180 text-red-600" />
+                        </>
+                    )}
                 </div>
-                <div className="leading-none text-muted-foreground">
-                    Showing total visitors for the last 6 months
+                <div className="text-xs text-muted-foreground">
+                    Разом: {total.toLocaleString("uk-UA")}
                 </div>
             </CardFooter>
         </Card>

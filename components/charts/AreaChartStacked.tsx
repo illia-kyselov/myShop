@@ -1,87 +1,113 @@
 "use client";
 
-import { TrendingUp } from "lucide-react";
+import React, { useState, useEffect } from "react";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import {
+    Card,
+    CardContent,
+    CardFooter,
+    CardHeader,
+    CardTitle,
+    CardDescription,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useMemo, useState, useEffect } from "react";
-import { Transaction, aggregateData, filterData, filters, getYearRange, getTrendingPercentage } from "@/lib/utils";
+import {
+    ChartContainer,
+    ChartTooltip,
+    ChartTooltipContent,
+    ChartConfig,
+} from "@/components/ui/chart";
+import { TrendingUp } from "lucide-react";
+
+interface Row {
+    date: string;
+    web: number;
+    mobile: number;
+}
 
 const chartConfig: ChartConfig = {
-    income: {
-        label: "Income",
-        color: "hsl(var(--chart-1))",
-    },
-    expense: {
-        label: "Expense",
-        color: "hsl(var(--chart-2))",
-    },
+    web: { label: "Веб", color: "hsl(var(--chart-1))" },
+    mobile: { label: "Мобільні", color: "hsl(var(--chart-2))" },
 };
 
-const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleString("en-US", { month: "short" });
-};
-
-export function AreaChartStacked({ data }: { data: Transaction[] }) {
-    const [selectedFilter, setSelectedFilter] = useState<string>("7D");
-    const filteredData = useMemo(() => filterData(data, selectedFilter), [data, selectedFilter]);
-    const chartData = aggregateData(filteredData);
-
-    const [yearRange, setYearRange] = useState<string>("...");
-    const [trendIncome, setTrendIncome] = useState<string>("...");
+export function AreaChartStacked() {
+    const [range, setRange] = useState<"7" | "14" | "30" | "90">("30");
+    const [data, setData] = useState<Row[]>([]);
+    const [trend, setTrend] = useState(0);
 
     useEffect(() => {
-        setYearRange(getYearRange(filteredData));
-        setTrendIncome(getTrendingPercentage(filteredData, "income").toFixed(1));
-    }, [filteredData]);
+        fetch(`/api/analytics?metric=dailyViews&range=${range}`)
+            .then((r) => r.json())
+            .then(({ data }: { data: Row[] }) => {
+                setData(data);
+                if (data.length >= 2) {
+                    const last = data.at(-1)!;
+                    const prev = data.at(-2)!;
+                    const dLast = last.web + last.mobile;
+                    const dPrev = prev.web + prev.mobile;
+                    setTrend(dPrev > 0 ? ((dLast - dPrev) / dPrev) * 100 : 0);
+                }
+            })
+            .catch(console.error);
+    }, [range]);
 
     return (
         <Card className="p-2">
-            <div className="flex gap-3 flex-wrap">
-                {filters.map((filter) => (
-                    <Button key={filter} variant={selectedFilter === filter ? "default" : "outline"} onClick={() => setSelectedFilter(filter)}>
-                        {filter}
+            <div className="flex gap-2 mb-2 p-5">
+                {(["7", "14", "30", "90"] as const).map((d) => (
+                    <Button
+                        key={d}
+                        variant={range === d ? "default" : "outline"}
+                        className={`${range === d ? "border border-[#1cca50]" : ""} cursor-pointer`}
+                        onClick={() => setRange(d)}
+                    >
+                        {d} днів
                     </Button>
                 ))}
             </div>
             <CardHeader>
-                <CardTitle>Area Chart - Stacked</CardTitle>
-                <CardDescription>Showing total visitors for the selected period</CardDescription>
+                <CardTitle>Перегляди за день (останні {range} днів)</CardTitle>
+                <CardDescription>
+                    Денна кількість переглядів по платформах
+                </CardDescription>
             </CardHeader>
             <CardContent>
                 <ChartContainer config={chartConfig}>
-                    <AreaChart accessibilityLayer data={chartData} margin={{ left: 12, right: 12 }}>
-                        <defs>
-                            <linearGradient id="fillIncome" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.8} />
-                                <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0.1} />
-                            </linearGradient>
-                            <linearGradient id="fillExpense" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="hsl(var(--chart-2))" stopOpacity={0.8} />
-                                <stop offset="95%" stopColor="hsl(var(--chart-2))" stopOpacity={0.1} />
-                            </linearGradient>
-                        </defs>
+                    <AreaChart data={data} margin={{ left: 12, right: 12 }}>
                         <CartesianGrid vertical={false} />
-                        <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} tickFormatter={formatDate} />
-                        <YAxis axisLine={false} tickMargin={8} />
-                        <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="dot" />} />
-                        <Area type="linear" dataKey="income" fill="url(#fillIncome)" stroke="hsl(var(--chart-1))" fillOpacity={0.4} stackId="a" />
-                        <Area type="linear" dataKey="expense" fill="url(#fillExpense)" stroke="hsl(var(--chart-2))" fillOpacity={0.4} stackId="a" />
+                        <XAxis dataKey="date" tickLine={false} axisLine={false} />
+                        <YAxis axisLine={false} />
+                        <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
+                        <Area
+                            type="monotone"
+                            dataKey="web"
+                            stroke="hsl(var(--chart-1))"
+                            fill="hsl(var(--chart-1))/20"
+                            stackId="a"
+                        />
+                        <Area
+                            type="monotone"
+                            dataKey="mobile"
+                            stroke="hsl(var(--chart-2))"
+                            fill="hsl(var(--chart-2))/20"
+                            stackId="a"
+                        />
                     </AreaChart>
                 </ChartContainer>
             </CardContent>
-            <CardFooter>
-                <div className="flex w-full items-start gap-2 text-sm">
-                    <div className="grid gap-2">
-                        <div className="flex items-center gap-2 font-medium leading-none">
-                            Trending {parseFloat(trendIncome) >= 0 ? "up" : "down"} by {trendIncome}% this month <TrendingUp className="h-4 w-4" />
-                        </div>
-                        <div className="flex items-center gap-2 leading-none text-muted-foreground">
-                            {yearRange}
-                        </div>
-                    </div>
+            <CardFooter className="text-sm">
+                <div className="font-medium flex items-center gap-2">
+                    {trend >= 0 ? (
+                        <>
+                            Зросли на {trend.toFixed(1)}%{" "}
+                            <TrendingUp className="h-4 w-4 text-green-600" />
+                        </>
+                    ) : (
+                        <>
+                            Зменшилися на {Math.abs(trend).toFixed(1)}%{" "}
+                            <TrendingUp className="h-4 w-4 rotate-180 text-red-600" />
+                        </>
+                    )}
                 </div>
             </CardFooter>
         </Card>
