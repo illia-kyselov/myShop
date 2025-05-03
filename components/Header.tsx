@@ -113,7 +113,7 @@ export default function Header() {
                                 </Link>
                                 <button
                                     onClick={handleLogout}
-                                    className="px-4 py-2 bg-[#161924] text-[#1cca50] rounded-md border border-[#1cca50] hover:bg-[#24293b]"
+                                    className="px-4 py-2 bg-[#161924] text-[#1cca50] rounded-md border border-[#1cca50] hover:bg-[#24293b] cursor-pointer"
                                 >
                                     Logout
                                 </button>
