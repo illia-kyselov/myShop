@@ -1,0 +1,14 @@
+# Database Configuration
+# PostgreSQL connection string
+# Format: postgresql://username:password@host:port/database
+# ЗАМІНІТЬ "password" на ваш пароль PostgreSQL!
+DATABASE_URL=postgresql://postgres:password@localhost:5432/myshop
+
+# JWT Secret Key (згенеровано автоматично)
+JWT_SECRET=cbacbf18832a1bdf854592b7c4ecd7e90228e7feb794f34972a3e8658a51df43
+
+# Node Environment
+NODE_ENV=development
+
+# Optional: Next.js Configuration
+NEXT_PUBLIC_API_URL=http://localhost:3000
